@@ -23,10 +23,11 @@ def run_performance_fetch():
     
     all_yf_tickers = yf_bist + yf_sp500
     
-    clog(f"Fetching 1y data for {len(all_yf_tickers)} tickers...")
-    
-    # Download data
-    data = yf.download(" ".join(all_yf_tickers), period="1y", interval="1d", group_by="ticker", threads=True, progress=False)
+    # Fetch 2y so we always have ≥ 252 trading days to compute the 1Y change.
+    # Previously period="1y" returned exactly ~252 rows, and the `len(df) > 252`
+    # guard below failed → 1Y column rendered as 0.00% for every ticker.
+    clog(f"Fetching 2y data for {len(all_yf_tickers)} tickers...")
+    data = yf.download(" ".join(all_yf_tickers), period="2y", interval="1d", group_by="ticker", threads=True, progress=False)
     
     records = []
     
@@ -49,12 +50,21 @@ def run_performance_fetch():
             last_price = df['Close'].iloc[-1]
             
             def get_change(days):
+                """Return (abs, pct) change vs. the price `days` trading-days
+                ago. Falls back to the earliest available price for tickers
+                with shorter listing history (so newly-IPO'd S&P names still
+                get a 1Y number instead of 0.00%)."""
+                if len(df) <= 1:
+                    return 0.0, 0.0
                 if len(df) > days:
                     past_price = df['Close'].iloc[-days - 1]
-                    abs_chg = last_price - past_price
-                    pct_chg = (abs_chg / past_price) * 100
-                    return abs_chg, pct_chg
-                return 0.0, 0.0
+                else:
+                    past_price = df['Close'].iloc[0]   # fallback: oldest we have
+                if past_price == 0:
+                    return 0.0, 0.0
+                abs_chg = last_price - past_price
+                pct_chg = (abs_chg / past_price) * 100
+                return abs_chg, pct_chg
                 
             abs_1d, pct_1d = get_change(1)
             abs_1w, pct_1w = get_change(5)
