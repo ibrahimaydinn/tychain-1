@@ -7,7 +7,7 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: LSTM + HMM + Monte Carlo stock forecasting for BIST30 & S&P 500
+short_description: AI stock forecasting for BIST30 and S&P 500
 ---
 
 # 📈 Tychain Pro — AI Stock Forecasting
