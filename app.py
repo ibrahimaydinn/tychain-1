@@ -94,7 +94,25 @@ SIGNAL_EMOJIS = {
 }
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+
+# SECRET_KEY must be stable across workers and restarts. Without one,
+# every gunicorn worker generates its own random key, which makes session
+# cookies (and the CSRF token they hold) unreadable on cross-worker
+# requests — surfacing as "Invalid Token" on signup/login.
+_secret = os.environ.get('SECRET_KEY')
+if not _secret:
+    if db_config.using_turso():
+        # Production (Turso configured) — fail loud rather than mint a
+        # random per-worker key.
+        raise RuntimeError(
+            "SECRET_KEY environment variable is required in production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\" "
+            "and set it as a Hugging Face Space secret."
+        )
+    # Dev fallback — fine because Flask's dev server is single-process.
+    _secret = secrets.token_hex(32)
+    print("[app] WARNING: SECRET_KEY not set — using ephemeral key (dev only).")
+app.secret_key = _secret
 
 # Trust the Hugging Face reverse proxy (HTTPS → HTTP)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
@@ -571,7 +589,10 @@ def api_analyze():
 def api_auth_route():
     action = request.form.get('action')
     if not check_csrf(request.form.get('csrf')):
-        return jsonify({'ok': False, 'error': 'Invalid request token'}), 403
+        # Almost always a session/cookie issue: SECRET_KEY mismatch across
+        # workers, browser blocking cookies, or a stale form left open
+        # across a server restart. Tell the user to refresh.
+        return jsonify({'ok': False, 'error': 'Session expired — please refresh the page and try again.'}), 403
 
     if action == 'login':
         email = request.form.get('email', '').lower().strip()
@@ -612,7 +633,10 @@ def api_tracked():
     uid    = session['user_id']
     action = request.form.get('action')
     if not check_csrf(request.form.get('csrf')):
-        return jsonify({'ok': False, 'error': 'Invalid request token'}), 403
+        # Almost always a session/cookie issue: SECRET_KEY mismatch across
+        # workers, browser blocking cookies, or a stale form left open
+        # across a server restart. Tell the user to refresh.
+        return jsonify({'ok': False, 'error': 'Session expired — please refresh the page and try again.'}), 403
 
     if action == 'add':
         ticker = request.form.get('ticker', '').upper()

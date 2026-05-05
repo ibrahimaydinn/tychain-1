@@ -39,6 +39,8 @@ ENV PORT=7860 \
     PYTHONPATH=/app \
     APP_URL=https://huggingface.co/spaces
 
-# Start the Flask app using Gunicorn (1 worker keeps SQLite-fallback writes safe;
-# scale workers up only when running on Turso).
-CMD ["gunicorn", "-b", "0.0.0.0:7860", "--timeout", "360", "--workers", "2", "app:app"]
+# Start the Flask app using Gunicorn.
+# Single worker on free HF CPU: avoids cross-worker session-cookie mismatch
+# (SECRET_KEY MUST be set as a Space secret regardless), and the workload
+# is dominated by long-running subprocess analyses, not concurrent requests.
+CMD ["gunicorn", "-b", "0.0.0.0:7860", "--timeout", "360", "--workers", "1", "--threads", "4", "app:app"]
