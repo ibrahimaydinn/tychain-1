@@ -114,14 +114,27 @@ if not _secret:
     print("[app] WARNING: SECRET_KEY not set — using ephemeral key (dev only).")
 app.secret_key = _secret
 
-# Trust the Hugging Face reverse proxy (HTTPS → HTTP)
+# Trust the Hugging Face reverse proxy (HTTPS → HTTP). x_proto=1 lets
+# Flask see the original https scheme via X-Forwarded-Proto, which is
+# required so that Secure-flagged cookies are issued.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-# Session cookie settings — required for cross-proxy environments
+# Session cookie settings.
+#
+# In production we run inside a Hugging Face Spaces iframe whose origin
+# (`*.hf.space`) is different from the surrounding huggingface.co page.
+# Modern browsers treat that as a cross-site context and *will not* send
+# `SameSite=Lax` cookies on requests originating in the iframe — which
+# turns every POST into a fresh session and triggers our CSRF guard.
+# `SameSite=None; Secure` is the only combination that works there.
+#
+# Locally (dev), we don't have HTTPS, so emitting `Secure` cookies would
+# prevent the browser from storing them at all. Detect and downgrade.
+_in_production = db_config.using_turso()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=False,   # HF proxy handles HTTPS; Flask sees HTTP
+    SESSION_COOKIE_SAMESITE='None' if _in_production else 'Lax',
+    SESSION_COOKIE_SECURE=_in_production,
     PERMANENT_SESSION_LIFETIME=timedelta(days=7),
 )
 
