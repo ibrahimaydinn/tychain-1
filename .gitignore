@@ -1,0 +1,37 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.token
+*.secret
+
+# Database (local dev only — production lives on Turso)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+backend/optrade.db
+tychain.db
+
+# Cache files
+backend/cache/*.csv
+backend/cache/*.meta
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+bist/
+*.egg-info/
+.pytest_cache/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# macOS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
