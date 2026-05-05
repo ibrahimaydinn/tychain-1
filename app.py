@@ -232,15 +232,15 @@ def db_create_user(email, password):
 
 def db_find_user_by_email(email):
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        return dict(row) if row else None
+        cur = conn.execute("SELECT * FROM users WHERE email = ?", (email,))
+        return db_config.dict_row(cur)
 
 def db_find_user_by_id(user_id):
     with get_db() as conn:
-        row = conn.execute(
+        cur = conn.execute(
             "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
-        ).fetchone()
-        return dict(row) if row else None
+        )
+        return db_config.dict_row(cur)
 
 def db_add_tracked(user_id, ticker):
     try:
@@ -262,11 +262,11 @@ def db_remove_tracked(user_id, ticker):
 
 def db_get_tracked(user_id):
     with get_db() as conn:
-        rows = conn.execute(
+        cur = conn.execute(
             "SELECT ticker, created_at FROM tracked_stocks WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+        )
+        return db_config.dict_rows(cur)
 
 def db_count_tracked(user_id):
     with get_db() as conn:
@@ -291,10 +291,10 @@ def db_save_signal(d):
 
 def db_get_signal(ticker):
     with get_db() as conn:
-        row = conn.execute(
+        cur = conn.execute(
             "SELECT * FROM signals WHERE ticker = ? LIMIT 1", (ticker.upper(),)
-        ).fetchone()
-        return dict(row) if row else None
+        )
+        return db_config.dict_row(cur)
 
 def db_signal_is_fresh(ticker):
     sig = db_get_signal(ticker)
@@ -331,13 +331,13 @@ def db_all_unique_tickers():
 
 def db_users_tracking(ticker):
     with get_db() as conn:
-        rows = conn.execute("""
-            SELECT u.id, u.email 
+        cur = conn.execute("""
+            SELECT u.id, u.email
             FROM tracked_stocks ts
             JOIN users u ON ts.user_id = u.id
             WHERE ts.ticker = ?
-        """, (ticker.upper(),)).fetchall()
-        return [dict(r) for r in rows]
+        """, (ticker.upper(),))
+        return db_config.dict_rows(cur)
 
 def db_already_notified(user_id, ticker, signal_type):
     with get_db() as conn:
@@ -528,31 +528,31 @@ def logout():
 @app.route('/market-summary')
 def market_summary():
     with get_db() as conn:
-        bist_gainers = conn.execute("SELECT * FROM performance_analytics WHERE market='BIST30' ORDER BY pct_1d DESC LIMIT 10").fetchall()
-        bist_losers = conn.execute("SELECT * FROM performance_analytics WHERE market='BIST30' ORDER BY pct_1d ASC LIMIT 10").fetchall()
-        sp500_gainers = conn.execute("SELECT * FROM performance_analytics WHERE market='SP500' ORDER BY pct_1d DESC LIMIT 10").fetchall()
-        sp500_losers = conn.execute("SELECT * FROM performance_analytics WHERE market='SP500' ORDER BY pct_1d ASC LIMIT 10").fetchall()
-        
+        bist_gainers  = db_config.dict_rows(conn.execute("SELECT * FROM performance_analytics WHERE market='BIST30' ORDER BY pct_1d DESC LIMIT 10"))
+        bist_losers   = db_config.dict_rows(conn.execute("SELECT * FROM performance_analytics WHERE market='BIST30' ORDER BY pct_1d ASC LIMIT 10"))
+        sp500_gainers = db_config.dict_rows(conn.execute("SELECT * FROM performance_analytics WHERE market='SP500' ORDER BY pct_1d DESC LIMIT 10"))
+        sp500_losers  = db_config.dict_rows(conn.execute("SELECT * FROM performance_analytics WHERE market='SP500' ORDER BY pct_1d ASC LIMIT 10"))
+
     return render_template('market-summary.html',
         logged_in=('user_id' in session),
         user_email=session.get('email', ''),
-        bist_gainers=[dict(r) for r in bist_gainers],
-        bist_losers=[dict(r) for r in bist_losers],
-        sp500_gainers=[dict(r) for r in sp500_gainers],
-        sp500_losers=[dict(r) for r in sp500_losers],
+        bist_gainers=bist_gainers,
+        bist_losers=bist_losers,
+        sp500_gainers=sp500_gainers,
+        sp500_losers=sp500_losers,
     )
 
 @app.route('/performance')
 def performance():
     with get_db() as conn:
-        bist_perf = conn.execute("SELECT * FROM performance_analytics WHERE market='BIST30' ORDER BY ticker ASC").fetchall()
-        sp500_perf = conn.execute("SELECT * FROM performance_analytics WHERE market='SP500' ORDER BY ticker ASC").fetchall()
-        
+        bist_perf  = db_config.dict_rows(conn.execute("SELECT * FROM performance_analytics WHERE market='BIST30' ORDER BY ticker ASC"))
+        sp500_perf = db_config.dict_rows(conn.execute("SELECT * FROM performance_analytics WHERE market='SP500' ORDER BY ticker ASC"))
+
     return render_template('performance.html',
         logged_in=('user_id' in session),
         user_email=session.get('email', ''),
-        bist_perf=[dict(r) for r in bist_perf],
-        sp500_perf=[dict(r) for r in sp500_perf],
+        bist_perf=bist_perf,
+        sp500_perf=sp500_perf,
     )
 
 # ── API ────────────────────────────────────────────────────────────────────────

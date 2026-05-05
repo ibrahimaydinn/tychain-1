@@ -64,6 +64,36 @@ def using_turso() -> bool:
     return bool(os.environ.get("TURSO_DATABASE_URL"))
 
 
+def dict_row(cursor):
+    """Fetch ONE row from `cursor` and return it as a plain dict (or None).
+
+    Works against both sqlite3.Row objects (which support row['col']) and
+    plain tuples returned by libsql_experimental — the latter use the
+    cursor's `description` to recover column names.
+    """
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    if hasattr(row, "keys"):
+        return {k: row[k] for k in row.keys()}
+    cols = [d[0] for d in cursor.description] if cursor.description else []
+    return dict(zip(cols, row))
+
+
+def dict_rows(cursor):
+    """Fetch ALL rows from `cursor` and return as a list of plain dicts.
+
+    Same compatibility logic as `dict_row`. Always returns a list (possibly empty).
+    """
+    rows = cursor.fetchall()
+    if not rows:
+        return []
+    if hasattr(rows[0], "keys"):
+        return [{k: r[k] for k in r.keys()} for r in rows]
+    cols = [d[0] for d in cursor.description] if cursor.description else []
+    return [dict(zip(cols, r)) for r in rows]
+
+
 def get_connection() -> Any:
     """Return a DB connection — Turso libSQL when configured, else local SQLite.
 
